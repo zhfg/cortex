@@ -166,15 +166,14 @@ func (f *Frontend) handle(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		writeError(w, err)
-		return
+	} else {
+		hs := w.Header()
+		for h, vs := range resp.Header {
+			hs[h] = vs
+		}
+		w.WriteHeader(resp.StatusCode)
+		io.Copy(w, resp.Body)
 	}
-
-	hs := w.Header()
-	for h, vs := range resp.Header {
-		hs[h] = vs
-	}
-	w.WriteHeader(resp.StatusCode)
-	io.Copy(w, resp.Body)
 
 	if f.cfg.LogQueriesLongerThan > 0 && queryResponseTime > f.cfg.LogQueriesLongerThan {
 		logMessage := []interface{}{
