@@ -164,23 +164,6 @@ func (f *Frontend) handle(w http.ResponseWriter, r *http.Request) {
 	resp, err := f.roundTripper.RoundTrip(r)
 	queryResponseTime := time.Since(startTime)
 
-	if f.cfg.LogQueriesLongerThan > 0 && queryResponseTime > f.cfg.LogQueriesLongerThan {
-		logMessage := []interface{}{
-			"msg", "slow query",
-			"host", r.Host,
-			"path", r.URL.Path,
-			"time_taken", queryResponseTime.String(),
-		}
-		for k, v := range r.URL.Query() {
-			logMessage = append(logMessage, fmt.Sprintf("qs_%s", k), strings.Join(v, ","))
-		}
-		pf := r.PostForm.Encode()
-		if pf != "" {
-			logMessage = append(logMessage, "body", pf)
-		}
-		level.Info(util.WithContext(r.Context(), f.log)).Log(logMessage...)
-	}
-
 	if err != nil {
 		writeError(w, err)
 		return
@@ -192,6 +175,35 @@ func (f *Frontend) handle(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
+
+	if f.cfg.LogQueriesLongerThan > 0 && queryResponseTime > f.cfg.LogQueriesLongerThan {
+		logMessage := []interface{}{
+			"msg", "slow query detected",
+			"method", r.Method,
+			"host", r.Host,
+			"path", r.URL.Path,
+			"time_taken", queryResponseTime.String(),
+		}
+
+		// Extract the ID from the header of the request
+		id, _, err := user.ExtractOrgIDFromHTTPRequest(r)
+		if err != nil {
+			logMessage = append(logMessage, "tenant_id", id)
+		}
+
+		// Ensure the form has been parsed so all the parameters are present
+		err = r.ParseForm()
+		if err != nil {
+			level.Warn(util.WithContext(r.Context(), f.log)).Log("unable to parse form for request")
+		}
+		
+		// Attempt to iterate throught the Form to log any filled in values
+		for k, v := range r.Form {
+			logMessage = append(logMessage, fmt.Sprintf("qs_%s", k), strings.Join(v, ","))
+		}
+
+		level.Info(util.WithContext(r.Context(), f.log)).Log(logMessage...)
+	}
 }
 
 func writeError(w http.ResponseWriter, err error) {
