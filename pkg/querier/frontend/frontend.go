@@ -196,7 +196,7 @@ func (f *Frontend) handle(w http.ResponseWriter, r *http.Request) {
 			level.Warn(util.WithContext(r.Context(), f.log)).Log("unable to parse form for request")
 		}
 		
-		// Attempt to iterate throught the Form to log any filled in values
+		// Attempt to iterate through the Form to log any filled in values
 		for k, v := range r.Form {
 			logMessage = append(logMessage, fmt.Sprintf("qs_%s", k), strings.Join(v, ","))
 		}
